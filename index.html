@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Indeterminate Beam Solver (Moment Distribution) — Student Project</title>
+  <style>
+    :root{
+      --bg:#f7f7f9;
+      --card:#ffffff;
+      --border:#d9d9df;
+      --text:#111214;
+      --muted:#666a73;
+      --accent:#0b5cff;
+      --accent2:#0a49c9;
+      --warn:#b3261e;
+      --warnbg:#fff2f1;
+      --ok:#1b7f3a;
+      --okbg:#eef9f1;
+      --shadow: 0 1px 2px rgba(0,0,0,0.04);
+      --radius: 12px;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      padding:24px;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background:var(--bg);
+      color:var(--text);
+    }
+    .wrap{max-width:1100px;margin:0 auto}
+    h1{margin:0 0 6px 0;font-size:28px;letter-spacing:-0.2px}
+    h2{margin:0 0 10px 0;font-size:18px}
+    p{margin:8px 0}
+    .subtitle{color:var(--muted); margin:0 0 18px 0}
+    .card{
+      background:var(--card);
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      padding:16px 18px;
+      margin:14px 0;
+      box-shadow: var(--shadow);
+    }
+    .warnbox{
+      border:2px solid var(--warn);
+      background:var(--warnbg);
+    }
+    .okbox{
+      border:1px solid var(--ok);
+      background:var(--okbg);
+    }
+    .grid{
+      display:grid;
+      grid-template-columns: repeat(4, minmax(170px, 1fr));
+      gap:12px;
+    }
+    @media (max-width: 950px){ .grid{grid-template-columns:1fr 1fr;} }
+    @media (max-width: 560px){ .grid{grid-template-columns:1fr;} }
+    label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+    input, select{
+      width:100%;
+      padding:10px 10px;
+      border:1px solid var(--border);
+      border-radius:10px;
+      font-size:14px;
+      background:white;
+    }
+    input:focus, select:focus{outline:2px solid rgba(11,92,255,0.20); border-color: var(--accent);}
+    .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
+    button{
+      padding:10px 14px;
+      border-radius:10px;
+      border:1px solid var(--border);
+      background:#f3f4f6;
+      cursor:pointer;
+      font-weight:600;
+    }
+    button.primary{
+      background:var(--accent);
+      border-color:var(--accent);
+      color:white;
+    }
+    button.primary:hover{ background:var(--accent2); border-color:var(--accent2); }
+    button:disabled{ opacity:0.6; cursor:not-allowed; }
+    .muted{color:var(--muted)}
+    .small{font-size:12px}
+    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace}
+    .hr{height:1px;background:var(--border);margin:14px 0}
+    .pill{
+      display:inline-block;
+      padding:2px 8px;
+      border:1px solid var(--border);
+      border-radius:999px;
+      font-size:12px;
+      color:var(--muted);
+      background:#fafafa;
+    }
+    .span-card{
+      border:1px dashed var(--border);
+      border-radius:12px;
+      padding:12px;
+      margin-top:10px;
+      background:#fcfcfd;
+    }
+    .span-title{margin:0 0 8px 0; font-weight:700}
+    table{border-collapse:collapse;width:100%;margin-top:10px}
+    td, th{border:1px solid var(--border); padding:8px 10px; font-size:14px}
+    th{background:#fafafa;text-align:left}
+    .plots{display:grid; grid-template-columns: 1fr; gap:14px; margin-top:12px}
+    svg{max-width:100%; height:auto}
+    .kbd{font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; font-size:12px; padding:2px 6px; border:1px solid var(--border); border-bottom-width:2px; border-radius:6px; background:#fff}
+  </style>
+</head>
+
+<body>
+<div class="wrap">
+  <div class="card warnbox">
+    <h2 style="margin:0 0 6px 0;">Academic / Professional Disclaimer</h2>
+    <p>
+      This web application was created by a <b>civil engineering student</b> as a learning + portfolio project to practice
+      structural analysis concepts and software implementation of the <b>Moment Distribution Method</b>.
+    </p>
+    <p>
+      <b>Not for professional use:</b> this tool is <b>not validated, not certified, and not a substitute for engineering judgement</b>.
+      Do not rely on it for real-world design, safety-critical assessment, construction decisions, or any application requiring a licensed professional engineer.
+    </p>
+    <p class="small muted">
+      Educational outputs should be independently checked (e.g., trusted software, hand calculations, or instructor/professional review) before drawing conclusions.
+    </p>
+  </div>
+
+  <div class="card">
+    <h1>Indeterminate Beam Solver (Moment Distribution)</h1>
+    <p class="subtitle">
+      Unit-agnostic demo. Use a consistent unit system for <b>length</b>, <b>loads</b>, and <b>EI</b>. Output moments follow that same implied unit system.
+    </p>
+    <div class="row">
+      <span class="pill">Supports UF + CO</span>
+      <span class="pill">End moments + convergence</span>
+      <span class="pill">Continuous BMD plotting convention</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>What this tool does</h2>
+    <p>
+      Given a continuous beam defined by joints A–B–C–… with span lengths and flexural rigidity EI, this tool:
+      (1) computes fixed-end moments from loads,
+      (2) iteratively balances joint moments via moment distribution + carry-over,
+      and (3) reports the final member end moments (e.g., AB, BA, BC, CB).
+    </p>
+    <p class="small muted">
+      Note: Member end moments at a shared joint typically appear equal-and-opposite (e.g., BA ≈ −BC). For the plotted beam moment diagram (BMD),
+      the web app uses a single continuous plotting convention (one value per x-location) to avoid artificial jumps.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>About the method</h2>
+    <ol style="margin:0 0 0 18px;">
+      <li>Compute fixed-end moments (FEM) from loads (UF or CO).</li>
+      <li>Compute stiffness per member at a joint: <span class="mono">k = 4EI/L</span> (with standard end-condition adjustments handled in the solver).</li>
+      <li>Compute distribution factors at interior joints: <span class="mono">DF = k / Σk</span>.</li>
+      <li>Distribute unbalanced joint moments and apply carry-over (≈ <span class="mono">0.5</span>) to far ends.</li>
+      <li>Iterate until <span class="mono">max |joint_unbalance| &lt; tol</span>.</li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <h2>Definitions</h2>
+    <ul style="margin:0 0 0 18px;">
+      <li><b>UF</b>: uniformly distributed load <span class="mono">w</span> over the <b>full span</b> (force/length).</li>
+      <li><b>CO</b>: a <b>single point load</b> <span class="mono">P</span> at distance <span class="mono">a</span> from the left joint of that span (force), with <span class="mono">0 &lt; a &lt; L</span>.</li>
+      <li><b>tol</b>: convergence tolerance on the maximum joint moment unbalance.</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>Solver scope & limitations (this version)</h2>
+    <ul style="margin:0 0 0 18px;">
+      <li><b>Continuous beams only</b> (rotational DOFs). Portal frames / lateral sway / translational DOFs are out of scope.</li>
+      <li>Beam must be a <b>single chain</b> of joints A–B–C–… (no branching / frame joints).</li>
+      <li>Exactly <b>two members meet</b> at each interior joint (no 3+ members at a joint).</li>
+      <li>Loads supported: <b>UF</b> (full-span UDL) and <b>CO</b> (one interior point load per span).</li>
+      <li><b>Not supported yet:</b> partial UDLs, trapezoidal loads, multiple loads per span, applied end moments, settlements, temperature/curvature effects.</li>
+      <li>This web page plots a BMD using a consistent convention; it does <b>not</b> compute reactions or shear force diagrams in this version.</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>Input</h2>
+    <div class="grid">
+      <div>
+        <label>Number of joints (2–10)</label>
+        <input id="n_joints" type="number" min="2" max="10" value="3" />
+      </div>
+      <div>
+        <label>Left end fixed?</label>
+        <select id="left_fixed">
+          <option value="true">Yes (Fixed)</option>
+          <option value="false">No (Pinned/Free)</option>
+        </select>
+      </div>
+      <div>
+        <label>Right end fixed?</label>
+        <select id="right_fixed">
+          <option value="true">Yes (Fixed)</option>
+          <option value="false">No (Pinned/Free)</option>
+        </select>
+      </div>
+      <div>
+        <label>Solver tolerance (tol)</label>
+        <input id="tol" type="text" value="1e-6" />
+      </div>
+    </div>
+
+    <div class="row" style="margin-top:12px;">
+      <button id="btnBuild" onclick="buildSpanInputs()">Build span inputs</button>
+      <button id="btnSolve" class="primary" onclick="solve()">Solve</button>
+      <span class="muted small">Tip: if you edit number of joints, press <span class="kbd">Build span inputs</span> again.</span>
+    </div>
+
+    <div id="spanInputs"></div>
+  </div>
+
+  <div class="card">
+    <h2>Results</h2>
+    <div id="results" class="muted">No results yet.</div>
+    <div class="plots" id="plots"></div>
+  </div>
+</div>
+
+<script>
+// =========================
+// Config
+// =========================
+const API_URL = "http://127.0.0.1:8000/solve"; // FastAPI backend
+
+// =========================
+// Helpers
+// =========================
+function jointName(i){ return String.fromCharCode(65 + i); } // 0->A,1->B,...
+
+function safeNumber(x, fallback=0){
+  const v = Number(x);
+  return Number.isFinite(v) ? v : fallback;
+}
+
+function parseTol(){
+  // supports "1e-6" etc.
+  const s = (document.getElementById("tol").value || "").trim();
+  const v = Number(s);
+  return Number.isFinite(v) ? v : 1e-6;
+}
+
+function renderTable(title, obj){
+  const keys = Object.keys(obj || {});
+  if (!keys.length) return `<p class="muted">No ${title} returned.</p>`;
+  let html = `<h3 style="margin:10px 0 6px 0;">${title}</h3>`;
+  html += `<table><thead><tr><th>Key</th><th>Value</th></tr></thead><tbody>`;
+  for(const k of keys){
+    html += `<tr><td class="mono">${k}</td><td class="mono">${obj[k]}</td></tr>`;
+  }
+  html += `</tbody></table>`;
+  return html;
+}
+
+// =========================
+// Build dynamic span inputs
+// =========================
+function buildSpanInputs(){
+  const n = safeNumber(document.getElementById("n_joints").value, 3);
+  const nSpans = Math.max(1, n - 1);
+  const cont = document.getElementById("spanInputs");
+  cont.innerHTML = "";
+
+  for(let i=0;i<nSpans;i++){
+    const L_id = `L_${i}`;
+    const EI_id = `EI_${i}`;
+    const LT_id = `LT_${i}`;
+    const LV_id = `LV_${i}`;
+    const Awrap_id = `Awrap_${i}`;
+    const A_id = `A_${i}`;
+
+    const left = jointName(i);
+    const right = jointName(i+1);
+
+    cont.innerHTML += `
+      <div class="span-card">
+        <div class="span-title">Span ${left}${right}</div>
+        <div class="grid">
+          <div>
+            <label>Length L</label>
+            <input id="${L_id}" type="number" value="10" step="any" />
+          </div>
+          <div>
+            <label>EI</label>
+            <input id="${EI_id}" type="number" value="1" step="any" />
+          </div>
+          <div>
+            <label>Load type</label>
+            <select id="${LT_id}" onchange="toggleA(${i})">
+              <option value="NONE">NONE</option>
+              <option value="UF">UF (full-span UDL)</option>
+              <option value="CO">CO (single point load)</option>
+            </select>
+          </div>
+          <div>
+            <label>Load value (w or P)</label>
+            <input id="${LV_id}" type="number" value="0" step="any" />
+          </div>
+        </div>
+        <div id="${Awrap_id}" style="display:none; margin-top:10px;">
+          <div class="grid" style="grid-template-columns: minmax(170px, 1fr) minmax(170px, 1fr);">
+            <div>
+              <label>Point load position a (from left joint)</label>
+              <input id="${A_id}" type="number" value="0" step="any" />
+            </div>
+            <div class="muted small" style="align-self:end;">
+              For CO, use <span class="mono">0 &lt; a &lt; L</span>. Loads exactly at a joint (<span class="mono">a=0</span> or <span class="mono">a=L</span>) are treated as joint loads and may not be supported.
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+}
+
+function toggleA(i){
+  const t = document.getElementById(`LT_${i}`).value;
+  const wrap = document.getElementById(`Awrap_${i}`);
+  wrap.style.display = (t === "CO") ? "block" : "none";
+}
+
+// =========================
+// Residual plot (convergence)
+// =========================
+function renderResidualPlot(residualHistory, width=900, height=260, pad=40){
+  if(!residualHistory || !residualHistory.length){
+    return `<p class="muted small">No convergence history returned.</p>`;
+  }
+  const xs = residualHistory.map((_, i) => i);
+  const ys = residualHistory.map(v => Math.abs(safeNumber(v, 0)));
+
+  const xmin = 0, xmax = Math.max(...xs, 1);
+  const ymin = 0, ymax = Math.max(...ys, 1);
+
+  const mapX = x => pad + (x - xmin) / (xmax - xmin) * (width - 2*pad);
+  const mapY = y => (height - pad) - (y - ymin) / (ymax - ymin) * (height - 2*pad);
+
+  const d = ys.map((y, i) => `${i===0?'M':'L'} ${mapX(i).toFixed(2)} ${mapY(y).toFixed(2)}`).join(" ");
+
+  return `
+    <div>
+      <h3 style="margin:10px 0 6px 0;">Convergence</h3>
+      <svg width="${width}" height="${height}" style="border:1px solid #ddd; border-radius:12px; background:#fff;">
+        <line x1="${pad}" y1="${height-pad}" x2="${width-pad}" y2="${height-pad}" stroke="#aaa"/>
+        <line x1="${pad}" y1="${pad}" x2="${pad}" y2="${height-pad}" stroke="#aaa"/>
+        <path d="${d}" fill="none" stroke="#111" stroke-width="2"/>
+        <text x="${pad}" y="${pad-10}" font-size="12" fill="#444">|max joint unbalance| vs iteration</text>
+      </svg>
+      <p class="muted small">Lower is better. Solver stops when max unbalance &lt; tol.</p>
+    </div>
+  `;
+}
+
+// =========================
+// Moment diagram builder (continuous convention)
+// =========================
+// =========================
+// Moment diagram builder (continuous + auto sign fix)
+// =========================
+function buildMomentDiagram(endMoments, lengths, loads, nJoints, nPerSpan = 80) {
+  const pts = [];
+  let x0 = 0;
+
+  const eps = 1e-12;
+
+  for (let s = 0; s < nJoints - 1; s++) {
+    const L = safeNumber(lengths[s], 0);
+    if (L <= 0) throw new Error(`Span ${s}: length must be > 0.`);
+
+    const left  = jointName(s);
+    const right = jointName(s + 1);
+
+    const keyL = `${left}${right}`;   // e.g., AB  (moment at left end of span)
+    const keyR = `${right}${left}`;   // e.g., BA  (moment at right end of span; sign may differ by convention)
+
+    // Base end moments from solver
+    const MA = safeNumber(endMoments[keyL], 0);
+    let MBraw = safeNumber(endMoments[keyR], 0);
+
+    // --- Auto choose sign for MB to make the diagram continuous at the NEXT joint ---
+    // Next span (if exists) starts at moment keyNext = right->next (e.g., BC).
+    // We choose MB = MBraw OR MB = -MBraw, whichever matches next span's MA better.
+    let MB = MBraw;
+    if (s < nJoints - 2) {
+      const next = jointName(s + 2);
+      const keyNext = `${right}${next}`;   // e.g., BC
+      const nextMA = safeNumber(endMoments[keyNext], 0);
+
+      const errNoFlip = Math.abs(MBraw - nextMA);
+      const errFlip   = Math.abs((-MBraw) - nextMA);
+
+      if (errFlip < errNoFlip) MB = -MBraw;
+    }
+
+    const type = (loads[s]?.type || "NONE").toUpperCase();
+    const val  = safeNumber(loads[s]?.value, 0);
+    const a    = safeNumber(loads[s]?.a, 0);
+
+    // Plot each joint only once (prevents vertical discontinuity at shared x)
+    const startI = (s === 0) ? 0 : 1;
+
+    for (let i = startI; i <= nPerSpan; i++) {
+      const x = (L * i) / nPerSpan;
+      let M;
+
+      if (type === "NONE" || Math.abs(val) < 1e-15) {
+        // Linear between end moments
+        M = MA + (MB - MA) * (x / L);
+
+      } else if (type === "UF") {
+        // Full-span uniform load w:
+        // M(x) = MA + C1 x - (w x^2)/2
+        // Enforce M(L)=MB => C1 = (MB - MA)/L + (w L)/2
+        const w = val;
+        const C1 = (MB - MA) / L + (w * L) / 2;
+        M = MA + C1 * x - (w * x * x) / 2;
+
+      } else if (type === "CO") {
+        // Point load P at a from left (0<a<L):
+        // x<a:  M = MA + C1 x
+        // x>=a: M = MA + C1 x - P(x-a)
+        // Enforce M(L)=MB => C1 = (MB - MA + P(L-a))/L
+        const P = val;
+
+        if (a <= eps || a >= (L - eps)) {
+          // Joint load case: fallback (not uniquely representable here)
+          M = MA + (MB - MA) * (x / L);
+        } else{
+
+    // Correct shear from equilibrium (fixes peak value)
+    const VA = (P * (L - a) + (MB - MA)) / L;
+
+    if (x < a){
+        M = MA + VA * x;
+    } else {
+        M = MA + VA * x - P * (x - a);
+    }
+}
+
+
+      } else {
+        // Unknown type => behave like NONE
+        M = MA + (MB - MA) * (x / L);
+      }
+
+      pts.push({ x: x0 + x, M });
+    }
+
+    x0 += L;
+  }
+
+  return pts;
+}
+
+
+// =========================
+// Moment diagram SVG renderer (joint labels + max/min)
+// =========================
+function renderMomentSVG(points, lengths, width=900, height=280, pad=40){
+  if(!points || !points.length) return `<p class="muted small">No moment points to plot.</p>`;
+
+  const xs = points.map(p => p.x);
+  const Ms = points.map(p => p.M);
+
+  const xmin = Math.min(...xs), xmax = Math.max(...xs);
+  const Mmin = Math.min(...Ms), Mmax = Math.max(...Ms);
+
+  const xSpan = (xmax - xmin) || 1;
+  const MSpan = (Mmax - Mmin) || 1;
+
+  const mapX = x => pad + ((x - xmin) / xSpan) * (width - 2*pad);
+  const mapY = M => (height - pad) - ((M - Mmin) / MSpan) * (height - 2*pad);
+
+  const d = points.map((p, i) => `${i===0?'M':'L'} ${mapX(p.x).toFixed(2)} ${mapY(p.M).toFixed(2)}`).join(" ");
+
+  // zero line if included
+  const y0 = (0 >= Mmin && 0 <= Mmax) ? mapY(0) : null;
+
+  // joint x-locations for labels
+  const jointXs = [0];
+  for(let i=0;i<lengths.length;i++) jointXs.push(jointXs[jointXs.length-1] + safeNumber(lengths[i],0));
+
+  const jointTicks = jointXs.map((xj, i) => {
+    const X = mapX(xj);
+    const label = jointName(i);
+    return `
+      <line x1="${X}" y1="${height-pad}" x2="${X}" y2="${height-pad+8}" stroke="#333"/>
+      <text x="${X}" y="${height-pad+24}" font-size="12" text-anchor="middle" fill="#333">${label}</text>
+    `;
+  }).join("");
+
+  // max/min points
+  let iMax = 0, iMin = 0;
+  for(let i=1;i<points.length;i++){
+    if(points[i].M > points[iMax].M) iMax = i;
+    if(points[i].M < points[iMin].M) iMin = i;
+  }
+  const pMax = points[iMax], pMin = points[iMin];
+  const Xmax = mapX(pMax.x), Ymax = mapY(pMax.M);
+  const XminP = mapX(pMin.x), YminP = mapY(pMin.M);
+
+  const fmt = (v) => {
+    const av = Math.abs(v);
+    if(av >= 1000) return v.toFixed(1);
+    if(av >= 10) return v.toFixed(2);
+    if(av >= 1) return v.toFixed(3);
+    return v.toExponential(3);
+  };
+
+  return `
+    <div>
+      <h3 style="margin:10px 0 6px 0;">Moment Diagram (BMD)</h3>
+      <svg width="${width}" height="${height}" style="border:1px solid #ddd; border-radius:12px; background:#fff;">
+        <!-- axes -->
+        <line x1="${pad}" y1="${height-pad}" x2="${width-pad}" y2="${height-pad}" stroke="#aaa"/>
+        <line x1="${pad}" y1="${pad}" x2="${pad}" y2="${height-pad}" stroke="#aaa"/>
+
+        ${y0 !== null ? `<line x1="${pad}" y1="${y0}" x2="${width-pad}" y2="${y0}" stroke="#bbb" stroke-dasharray="4 4"/>` : ""}
+
+        <!-- joint labels -->
+        ${jointTicks}
+
+        <!-- curve -->
+        <path d="${d}" fill="none" stroke="#111" stroke-width="2"/>
+
+        <!-- max/min markers -->
+        <circle cx="${Xmax}" cy="${Ymax}" r="4" fill="#111"/>
+        <text x="${Xmax+8}" y="${Ymax-10}" font-size="12" fill="#111">Max: ${fmt(pMax.M)} @ x=${fmt(pMax.x)}</text>
+
+        <circle cx="${XminP}" cy="${YminP}" r="4" fill="#111"/>
+        <text x="${XminP+8}" y="${YminP+16}" font-size="12" fill="#111">Min: ${fmt(pMin.M)} @ x=${fmt(pMin.x)}</text>
+
+        <text x="${pad}" y="${pad-10}" font-size="12" fill="#444">M(x)</text>
+      </svg>
+      <p class="muted small">
+        This plot uses a single continuous convention along the beam axis (one moment value per x). Member-end moment sign pairs at joints (e.g., BA and BC)
+        can be equal-and-opposite; the plotted diagram stitches spans to avoid artificial jumps.
+      </p>
+    </div>
+  `;
+}
+
+// =========================
+// Solve pipeline
+// =========================
+async function solve(){
+  const resDiv = document.getElementById("results");
+  const plotsDiv = document.getElementById("plots");
+  resDiv.textContent = "Solving...";
+  plotsDiv.innerHTML = "";
+
+  try{
+    const n = safeNumber(document.getElementById("n_joints").value, 3);
+    const nSpans = Math.max(1, n - 1);
+
+    const lengths = [];
+    const EIs = [];
+    const loads = [];
+
+    for(let i=0;i<nSpans;i++){
+      const L = safeNumber(document.getElementById(`L_${i}`).value, 0);
+      const EI = safeNumber(document.getElementById(`EI_${i}`).value, 0);
+      const type = (document.getElementById(`LT_${i}`).value || "NONE").toUpperCase();
+      const value = safeNumber(document.getElementById(`LV_${i}`).value, 0);
+      const aEl = document.getElementById(`A_${i}`);
+      const a = aEl ? safeNumber(aEl.value, 0) : 0;
+
+      lengths.push(L);
+      EIs.push(EI);
+      loads.push({ type, value, a });
+    }
+
+    const payload = {
+      n_joints: n,
+      left_fixed: document.getElementById("left_fixed").value === "true",
+      right_fixed: document.getElementById("right_fixed").value === "true",
+      lengths: lengths,
+      EIs: EIs,
+      loads: loads,
+      tol: parseTol(),
+      max_iter: 500,
+      // used by backend to snap tiny values to 0 (your earlier request)
+      zero_display_tol: parseTol()
+    };
+
+    const resp = await fetch(API_URL, {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify(payload)
+    });
+
+    if(!resp.ok){
+      const txt = await resp.text();
+      throw new Error(`API error ${resp.status}: ${txt}`);
+    }
+
+    const data = await resp.json();
+
+    // Results summary
+    let out = "";
+    if("residual" in data) out += `<p><b>Residual (max joint unbalance):</b> <span class="mono">${data.residual}</span></p>`;
+    if("iterations" in data) out += `<p><b>Iterations:</b> <span class="mono">${data.iterations}</span></p>`;
+
+    out += renderTable("End moments", data.end_moments || {});
+
+    // Optional: joint checks if backend provides
+    if(data.joint_checks && Object.keys(data.joint_checks).length){
+      out += renderTable("Joint equilibrium checks (sum at joint)", data.joint_checks);
+      out += `<p class="muted small">Interior joints should sum near 0 when converged (within tol).</p>`;
+    }
+
+    resDiv.innerHTML = out;
+
+    // Plots
+    if(data.residual_history && data.residual_history.length){
+      plotsDiv.innerHTML += renderResidualPlot(data.residual_history);
+    }
+
+    // Moment diagram (continuous)
+    const pts = buildMomentDiagram(data.end_moments || {}, lengths, loads, n, 90);
+    plotsDiv.innerHTML += renderMomentSVG(pts, lengths);
+
+  } catch(e){
+    resDiv.innerHTML = `<p><b>Error:</b> ${e.message}</p>
+      <p class="muted small">Open DevTools Console (F12) to see details. If your backend is running, ensure API_URL matches.</p>`;
+  }
+}
+
+// initial render
+buildSpanInputs();
+</script>
+</body>
+</html>
